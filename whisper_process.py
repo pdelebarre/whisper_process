@@ -8,10 +8,10 @@ from pydub import AudioSegment
 from multiprocessing import Pool, cpu_count
 
 # Configuration
-WATCH_FOLDER = "/mnt/videos"  
-PROCESSED_FOLDER = "/mnt/processed_videos"  
-MODEL_SIZE = "base"  # Use a larger model for better performance
-CHUNK_SIZE = 60 * 1000  # Split audio into 60-second chunks (in milliseconds)
+WATCH_FOLDER = "/mnt/videos"
+PROCESSED_FOLDER = "/mnt/processed_videos"
+MODEL_SIZE = "large"  # Larger model might perform better
+CHUNK_SIZE = 10 * 1000  # Split audio into 60-second chunks (in milliseconds)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,12 +19,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Load Whisper model
 model = whisper.load_model(MODEL_SIZE)
 
-def transcribe_chunk(chunk_path):
+def transcribe_chunk(chunk_data):
     """
     Transcribes a single audio chunk using Whisper.
     """
+    chunk_path, chunk_data = chunk_data
     try:
+        # Save chunk data to a temporary file
+        with open(chunk_path, 'wb') as f:
+            f.write(chunk_data)
+
         result = model.transcribe(chunk_path)
+        os.remove(chunk_path)  # Clean up the temporary file
         return result['segments']
     except Exception as e:
         logging.error(f"Error transcribing chunk {chunk_path}: {e}")
@@ -36,24 +42,22 @@ def split_and_process_audio(audio_path):
     """
     audio = AudioSegment.from_wav(audio_path)
     chunks = [audio[i:i + CHUNK_SIZE] for i in range(0, len(audio), CHUNK_SIZE)]
-    chunk_paths = []
 
-    # Save chunks to files
+    # Prepare chunks for parallel processing
+    chunk_paths = []
+    chunk_data_list = []
     for i, chunk in enumerate(chunks):
         chunk_path = f"{audio_path}_chunk_{i}.wav"
-        chunk.export(chunk_path, format="wav")
+        chunk_data_list.append((chunk_path, chunk.raw_data))
         chunk_paths.append(chunk_path)
 
     # Transcribe chunks in parallel using multiprocessing
     all_segments = []
-    with Pool(cpu_count()) as pool:
-        results = pool.map(transcribe_chunk, chunk_paths)
+    num_processes = min(cpu_count() * 2, len(chunk_paths))  # Increase processes if there are many chunks
+    with Pool(num_processes) as pool:
+        results = pool.map(transcribe_chunk, chunk_data_list)
         for segments in results:
             all_segments.extend(segments)
-
-    # Cleanup chunk files
-    for path in chunk_paths:
-        os.remove(path)
 
     return all_segments
 
