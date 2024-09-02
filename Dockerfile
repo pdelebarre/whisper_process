@@ -11,7 +11,8 @@ RUN apt-get update && \
 # Install Whisper and dependencies
 RUN pip install --no-cache-dir \
     openai-whisper \
-    torch --extra-index-url https://download.pytorch.org/whl/cpu
+    torch --extra-index-url https://download.pytorch.org/whl/cpu \
+    pydub
 
 # Create directories for the application
 WORKDIR /app
@@ -22,3 +23,4 @@ COPY whisper_process.py /app/
 
 # Set the script as the entry point
 ENTRYPOINT ["python3", "whisper_process.py"]
+
