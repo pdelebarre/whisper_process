@@ -34,7 +34,7 @@ def process_video(file_path):
     # Transcribe audio using Whisper
     logging.info(f"Transcribing audio for {file_name}...")
     try:
-        result = model.transcribe(audio_path, batch_size=1)
+        result = model.transcribe(audio_path)  # Removed batch_size argument
     except Exception as e:
         logging.error(f"Error transcribing audio: {e}")
         return
