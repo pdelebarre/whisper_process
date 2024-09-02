@@ -1,11 +1,12 @@
-from pydub import AudioSegment
-from multiprocessing import Pool, cpu_count
-import whisper
 import os
+import asyncio
+import whisper
 import subprocess
 import logging
 import shutil
-import asyncio
+import time  # Keep time for other purposes
+from pydub import AudioSegment
+from multiprocessing import Pool, cpu_count
 
 # Configuration
 WATCH_FOLDER = "/mnt/videos"  
@@ -109,23 +110,24 @@ async def poll_folder():
     processed_files = set()
 
     while True:
-        await asyncio.sleep(10)
         try:
+            await asyncio.sleep(10)  # Non-blocking sleep
+
             current_files = set(os.listdir(WATCH_FOLDER))
             new_files = [f for f in current_files if f.endswith(".mp4") and f not in processed_files]
             
             if new_files:
+                tasks = []
                 for file_name in new_files:
                     file_path = os.path.join(WATCH_FOLDER, file_name)
-                    process_video(file_path)
+                    tasks.append(process_video(file_path))
                     processed_files.add(file_name)
-            
-            # Wait before polling again
-            time.sleep(10)
+
+                await asyncio.gather(*tasks)  # Await all processing tasks
+
         except Exception as e:
             logging.error(f"Error during folder polling: {e}")
 
 if __name__ == "__main__":
     logging.info("Starting video processing application...")
     asyncio.run(poll_folder())
-
