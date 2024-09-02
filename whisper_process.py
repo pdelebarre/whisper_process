@@ -1,20 +1,60 @@
-import os
-import time
+from pydub import AudioSegment
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import whisper
+import os
 import subprocess
 import logging
-import shutil  # Import shutil for moving files across devices
+import shutil
 
 # Configuration
-WATCH_FOLDER = "/mnt/videos"  # Path to the shared folder mounted in the Docker container
-PROCESSED_FOLDER = "/mnt/processed_videos"  # Folder where processed videos will be moved
-MODEL_SIZE = "tiny"  # Whisper model size - can be 'tiny', 'base', 'small', 'medium', 'large'
+WATCH_FOLDER = "/mnt/videos"  
+PROCESSED_FOLDER = "/mnt/processed_videos"  
+MODEL_SIZE = "tiny"  
+CHUNK_SIZE = 60 * 1000  # Split audio into 60-second chunks (in milliseconds)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load Whisper model
 model = whisper.load_model(MODEL_SIZE)
+
+def transcribe_chunk(chunk_path):
+    """
+    Transcribes a single audio chunk using Whisper.
+    """
+    try:
+        result = model.transcribe(chunk_path)
+        return result['segments']
+    except Exception as e:
+        logging.error(f"Error transcribing chunk {chunk_path}: {e}")
+        return []
+
+def split_and_process_audio(audio_path):
+    """
+    Splits audio into chunks and processes each chunk in parallel.
+    """
+    audio = AudioSegment.from_wav(audio_path)
+    chunks = [audio[i:i + CHUNK_SIZE] for i in range(0, len(audio), CHUNK_SIZE)]
+    chunk_paths = []
+
+    # Save chunks to files
+    for i, chunk in enumerate(chunks):
+        chunk_path = f"{audio_path}_chunk_{i}.wav"
+        chunk.export(chunk_path, format="wav")
+        chunk_paths.append(chunk_path)
+
+    # Transcribe chunks in parallel
+    all_segments = []
+    with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust number of workers based on your CPU
+        futures = {executor.submit(transcribe_chunk, path): path for path in chunk_paths}
+        for future in as_completed(futures):
+            all_segments.extend(future.result())
+
+    # Cleanup chunk files
+    for path in chunk_paths:
+        os.remove(path)
+
+    return all_segments
 
 def process_video(file_path):
     """
@@ -32,19 +72,15 @@ def process_video(file_path):
         logging.error(f"Error extracting audio: {e}")
         return
 
-    # Transcribe audio using Whisper
+    # Split audio into chunks and transcribe
     logging.info(f"Transcribing audio for {file_name}...")
-    try:
-        result = model.transcribe(audio_path)  # Removed batch_size argument
-    except Exception as e:
-        logging.error(f"Error transcribing audio: {e}")
-        return
-    
+    all_segments = split_and_process_audio(audio_path)
+
     # Save subtitles to SRT file
     srt_path = f"{WATCH_FOLDER}/{file_name}.srt"
     try:
         with open(srt_path, 'w', encoding='utf-8') as f:
-            for i, segment in enumerate(result['segments'], start=1):
+            for i, segment in enumerate(all_segments, start=1):
                 start_time = whisper.utils.format_timestamp(segment['start'], always_include_hours=True)
                 end_time = whisper.utils.format_timestamp(segment['end'], always_include_hours=True)
                 f.write(f"{i}\n")
