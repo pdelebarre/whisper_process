@@ -10,8 +10,8 @@ from multiprocessing import Pool, cpu_count
 # Configuration
 WATCH_FOLDER = "/mnt/videos"
 PROCESSED_FOLDER = "/mnt/processed_videos"
-MODEL_SIZE = "large"  # Larger model might perform better
-CHUNK_SIZE = 10 * 1000  # Split audio into 60-second chunks (in milliseconds)
+MODEL_SIZE = "medium"  # Larger model might perform better
+CHUNK_SIZE = 20 * 1000  # Split audio into 60-second chunks (in milliseconds)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
