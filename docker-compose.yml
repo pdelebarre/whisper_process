@@ -10,3 +10,8 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1  # Ensure logs are flushed immediately
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'  # Limit to 3 CPU cores
+          memory: 4g   # Limit to 4GB RAM

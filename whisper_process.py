@@ -1,10 +1,11 @@
 from pydub import AudioSegment
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from multiprocessing import Pool, cpu_count
 import whisper
 import os
 import subprocess
 import logging
 import shutil
+import asyncio
 
 # Configuration
 WATCH_FOLDER = "/mnt/videos"  
@@ -43,12 +44,12 @@ def split_and_process_audio(audio_path):
         chunk.export(chunk_path, format="wav")
         chunk_paths.append(chunk_path)
 
-    # Transcribe chunks in parallel
+    # Transcribe chunks in parallel using multiprocessing
     all_segments = []
-    with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust number of workers based on your CPU
-        futures = {executor.submit(transcribe_chunk, path): path for path in chunk_paths}
-        for future in as_completed(futures):
-            all_segments.extend(future.result())
+    with Pool(cpu_count()) as pool:  # Utilize all CPU cores
+        results = pool.map(transcribe_chunk, chunk_paths)
+        for segments in results:
+            all_segments.extend(segments)
 
     # Cleanup chunk files
     for path in chunk_paths:
@@ -56,18 +57,20 @@ def split_and_process_audio(audio_path):
 
     return all_segments
 
-def process_video(file_path):
+async def process_video(file_path):
     """
     Process the video file to extract audio, transcribe using Whisper, and save the subtitles.
     """
     base_name = os.path.basename(file_path)
     file_name, _ = os.path.splitext(base_name)
     
+    loop = asyncio.get_event_loop()
+    
     # Extract audio from video
     audio_path = f"{WATCH_FOLDER}/{file_name}.wav"
     logging.info(f"Extracting audio from {file_path}...")
     try:
-        subprocess.run(['ffmpeg', '-i', file_path, '-q:a', '0', '-map', 'a', audio_path], check=True)
+        await loop.run_in_executor(None, lambda: subprocess.run(['ffmpeg', '-i', file_path, '-q:a', '0', '-map', 'a', audio_path], check=True))
     except subprocess.CalledProcessError as e:
         logging.error(f"Error extracting audio: {e}")
         return
@@ -99,13 +102,14 @@ def process_video(file_path):
     except OSError as e:
         logging.error(f"Error moving file: {e}")
 
-def poll_folder():
+async def poll_folder():
     """
     Continuously polls the watch folder for new video files to process.
     """
     processed_files = set()
 
     while True:
+        await asyncio.sleep(10)
         try:
             current_files = set(os.listdir(WATCH_FOLDER))
             new_files = [f for f in current_files if f.endswith(".mp4") and f not in processed_files]
@@ -123,4 +127,5 @@ def poll_folder():
 
 if __name__ == "__main__":
     logging.info("Starting video processing application...")
-    poll_folder()
+    asyncio.run(poll_folder())
+
