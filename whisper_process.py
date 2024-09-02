@@ -4,14 +4,13 @@ import whisper
 import subprocess
 import logging
 import shutil
-import time  # Keep time for other purposes
 from pydub import AudioSegment
 from multiprocessing import Pool, cpu_count
 
 # Configuration
 WATCH_FOLDER = "/mnt/videos"  
 PROCESSED_FOLDER = "/mnt/processed_videos"  
-MODEL_SIZE = "tiny"  
+MODEL_SIZE = "base"  # Use a larger model for better performance
 CHUNK_SIZE = 60 * 1000  # Split audio into 60-second chunks (in milliseconds)
 
 # Set up logging
@@ -47,7 +46,7 @@ def split_and_process_audio(audio_path):
 
     # Transcribe chunks in parallel using multiprocessing
     all_segments = []
-    with Pool(cpu_count()) as pool:  # Utilize all CPU cores
+    with Pool(cpu_count()) as pool:
         results = pool.map(transcribe_chunk, chunk_paths)
         for segments in results:
             all_segments.extend(segments)
@@ -71,7 +70,7 @@ async def process_video(file_path):
     audio_path = f"{WATCH_FOLDER}/{file_name}.wav"
     logging.info(f"Extracting audio from {file_path}...")
     try:
-        await loop.run_in_executor(None, lambda: subprocess.run(['ffmpeg', '-i', file_path, '-q:a', '0', '-map', 'a', audio_path], check=True))
+        await loop.run_in_executor(None, lambda: subprocess.run(['ffmpeg', '-i', file_path, '-q:a', '0', '-map', 'a', audio_path, '-threads', str(cpu_count())], check=True))
     except subprocess.CalledProcessError as e:
         logging.error(f"Error extracting audio: {e}")
         return
