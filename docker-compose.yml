@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  whisper-app:
+    image: your-dockerhub-username/whisper-app:latest  # Replace with your Docker Hub image
+    container_name: whisper-app
+    volumes:
+      - /volume1/docker/whisper/input:/mnt/videos  # Replace with your NAS folder path
+      - /volume1/docker/whisper/output:/mnt/processed_videos  # Replace with your NAS folder path
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1  # Ensure logs are flushed immediately

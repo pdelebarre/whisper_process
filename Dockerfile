@@ -1,16 +1,21 @@
 # Use a lightweight Python image
 FROM python:3.9-slim
 
-# Install FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg
+# Install FFmpeg and other dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Whisper and dependencies
-RUN pip install openai-whisper torch
+RUN pip install --no-cache-dir \
+    openai-whisper \
+    torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Create directories for the application
 WORKDIR /app
-RUN mkdir -p /mnt/videos
-RUN mkdir -p /mnt/processed_videos
+RUN mkdir -p /mnt/videos /mnt/processed_videos
 
 # Copy the script into the container
 COPY whisper_process.py /app/
