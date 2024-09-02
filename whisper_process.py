@@ -3,6 +3,7 @@ import time
 import whisper
 import subprocess
 import logging
+import shutil  # Import shutil for moving files across devices
 
 # Configuration
 WATCH_FOLDER = "/mnt/videos"  # Path to the shared folder mounted in the Docker container
@@ -54,10 +55,10 @@ def process_video(file_path):
         logging.error(f"Error saving subtitles: {e}")
         return
     
-    # Move processed video to another folder
+    # Move processed video to another folder using shutil.move
     processed_path = os.path.join(PROCESSED_FOLDER, base_name)
     try:
-        os.rename(file_path, processed_path)
+        shutil.move(file_path, processed_path)
         logging.info(f"Moved processed video to {processed_path}")
     except OSError as e:
         logging.error(f"Error moving file: {e}")
